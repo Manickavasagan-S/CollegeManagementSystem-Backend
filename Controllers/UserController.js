@@ -1,4 +1,6 @@
-const User=require("../Models/UserModel");
+const User = require("../Models/UserModel");
+const { saveOtp, verifyOtp } = require("../Utils/otpStore");
+const { sendOtpEmail } = require("../Utils/mailer");
 
 const SignupUser= async(req,res) =>{
     try{
@@ -83,4 +85,63 @@ const GetAllUsers = async (req, res) => {
     }
 };
 
-module.exports = { SignupUser, LoginUser, GetAllUsers }
+// ── Send OTP ────────────────────────────────────────────────────────────────
+const SendOtp = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        const user = await User.findOne({
+            email: { $regex: new RegExp(`^${email.trim()}$`, "i") },
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: "No account found with that email" });
+        }
+
+        // Generate 6-digit OTP
+        const otp = String(Math.floor(100000 + Math.random() * 900000));
+        saveOtp(email.trim(), otp);
+        await sendOtpEmail(email.trim(), otp);
+
+        res.status(200).json({ message: "OTP sent to your email" });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to send OTP", error: error.message });
+    }
+};
+
+// ── Reset Password (verify OTP then update) ──────────────────────────────────
+const ResetPassword = async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+
+        const result = verifyOtp(email.trim(), otp.trim());
+        if (!result.valid) {
+            return res.status(400).json({ message: result.reason });
+        }
+
+        const user = await User.findOne({
+            email: { $regex: new RegExp(`^${email.trim()}$`, "i") },
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        user.password = newPassword;
+        await user.save();
+
+        res.status(200).json({ message: "Password updated successfully" });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+module.exports = { SignupUser, LoginUser, GetAllUsers, SendOtp, ResetPassword };
