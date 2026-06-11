@@ -1,4 +1,7 @@
 const User = require("../Models/UserModel");
+const Mark = require("../Models/MarkModel");
+const Fee = require("../Models/FeeModel");
+const Complaint = require("../Models/ComplaintModel");
 const mongoose = require("mongoose");
 const { saveOtp, verifyOtp } = require("../Utils/otpStore");
 const { sendOtpEmail } = require("../Utils/mailer");
@@ -165,7 +168,15 @@ const DeleteUser = async (req, res) => {
             email: { $regex: new RegExp(`^${email.trim()}$`, "i") }
         });
         if (!deleted) return res.status(404).json({ message: "User not found" });
-        res.status(200).json({ message: "User deleted successfully" });
+
+        // Delete all related data
+        await Promise.all([
+            Mark.deleteMany({ userEmail: { $regex: new RegExp(`^${email.trim()}$`, "i") } }),
+            Fee.deleteMany({ userEmail: { $regex: new RegExp(`^${email.trim()}$`, "i") } }),
+            Complaint.deleteMany({ userEmail: { $regex: new RegExp(`^${email.trim()}$`, "i") } }),
+        ]);
+
+        res.status(200).json({ message: "User and all related data deleted successfully" });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }
