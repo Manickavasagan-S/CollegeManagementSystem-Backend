@@ -1,10 +1,24 @@
 const User = require("../Models/UserModel");
+const mongoose = require("mongoose");
 const { saveOtp, verifyOtp } = require("../Utils/otpStore");
 const { sendOtpEmail } = require("../Utils/mailer");
 
 const SignupUser= async(req,res) =>{
     try{
+        if (mongoose.connection.readyState !== 1)
+            return res.status(503).json({ message: "Database not connected. Please try again later." });
+
         const {firstname,lastname,email,password} = req.body;
+        const existingUser = await User.findOne({
+            email: { $regex: new RegExp(`^${email.trim()}$`, "i") }
+        });
+        
+        if (existingUser) {
+            return res.status(400).json({
+                message: "Email already exists",
+            });
+        }
+        
         const NewUser = new User({
             firstname,
             lastname,
@@ -22,7 +36,7 @@ const SignupUser= async(req,res) =>{
             message:"Invalid Detail",
             error:error.message,
         })
-    }0
+    }
 };
 
 const LoginUser = async(req, res) => {
